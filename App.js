@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Image, TextInput, ScrollView, Share } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Image, TextInput, ScrollView, Modal } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import MapScreen from './screens/MapScreen';
+import ShareCard from './components/ShareCard';
 
 export default function App() {
   const [image, setImage] = useState(null);
@@ -13,8 +15,25 @@ export default function App() {
   const [location, setLocation] = useState('กำลังหาตำแหน่ง...');
   const [coords, setCoords] = useState(null);
   const [tab, setTab] = useState('list');
+  const [shareMemory, setShareMemory] = useState(null);
 
-  useEffect(() => { getLocation(); }, []);
+  useEffect(() => {
+    loadMemories();
+    getLocation();
+  }, []);
+
+  const loadMemories = async () => {
+    try {
+      const data = await AsyncStorage.getItem('memories');
+      if (data) setMemories(JSON.parse(data));
+    } catch (e) {}
+  };
+
+  const saveToStorage = async (newMemories) => {
+    try {
+      await AsyncStorage.setItem('memories', JSON.stringify(newMemories));
+    } catch (e) {}
+  };
 
   const getLocation = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -41,23 +60,20 @@ export default function App() {
     }
   };
 
-  const saveMemory = () => {
+  const saveMemory = async () => {
     const now = new Date();
-    setMemories([{
+    const memory = {
       id: Date.now(),
       image, note, rating,
       date: now.toLocaleDateString('th-TH'),
       time: now.toLocaleTimeString('th-TH'),
       location, coords,
-    }, ...memories]);
+    };
+    const newMemories = [memory, ...memories];
+    setMemories(newMemories);
+    await saveToStorage(newMemories);
     setShowNote(false);
     setImage(null);
-  };
-
-  const shareLocation = async (m) => {
-    await Share.share({
-      message: `📍 ${m.location}\nhttps://maps.google.com/?q=${m.coords?.latitude},${m.coords?.longitude}`,
-    });
   };
 
   if (showNote) {
@@ -116,8 +132,8 @@ export default function App() {
                   <Text style={styles.cardLocation}>📍 {m.location}</Text>
                   <Text style={styles.cardRating}>{'⭐'.repeat(m.rating)}</Text>
                   <Text style={styles.cardNote}>{m.note}</Text>
-                  <TouchableOpacity onPress={() => shareLocation(m)}>
-                    <Text style={styles.shareBtn}>📤 แชร์ตำแหน่ง</Text>
+                  <TouchableOpacity onPress={() => setShareMemory(m)}>
+                    <Text style={styles.shareBtn}>📤 แชร์</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -127,6 +143,12 @@ export default function App() {
       ) : (
         <MapScreen memories={memories} />
       )}
+
+      <Modal visible={!!shareMemory} transparent animationType="fade">
+        {shareMemory && (
+          <ShareCard memory={shareMemory} onClose={() => setShareMemory(null)} />
+        )}
+      </Modal>
     </View>
   );
 }
