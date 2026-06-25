@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Image, TextInput, ScrollView, Modal } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Image, TextInput, ScrollView, Modal, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -117,6 +117,32 @@ export default function App() {
     setEditMemory(null);
   };
 
+  const deleteMemory = (id) => {
+    Alert.alert(
+      'Delete Memory',
+      'Are you sure you want to delete this memory?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes', style: 'destructive', onPress: async () => {
+            const updated = memories.filter((m) => m.id !== id);
+            setMemories(updated);
+            await saveToStorage(updated);
+          }
+        },
+      ]
+    );
+  };
+
+  const groupByDate = (memories) => {
+    const groups = {};
+    memories.forEach((m) => {
+      if (!groups[m.date]) groups[m.date] = [];
+      groups[m.date].push(m);
+    });
+    return Object.entries(groups);
+  };
+
   if (multiMode) {
     return (
       <View style={styles.container}>
@@ -187,34 +213,45 @@ export default function App() {
         <>
           <View style={styles.photoButtons}>
             <TouchableOpacity style={[styles.button, { flex: 1, marginRight: 8 }]} onPress={() => takePhoto(false)}>
-              <Text style={styles.buttonText}>📷 Single</Text>
+              <Text style={styles.buttonText}>📷 Start New Memory</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.buttonOutline, { flex: 1 }]} onPress={startMultiMode}>
-              <Text style={styles.buttonOutlineText}>📷 Multiple</Text>
+              <Text style={styles.buttonOutlineText}>📷 Start Multiple Memory</Text>
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.list}>
-            {memories.map((m) => (
-              <View key={m.id} style={styles.card}>
-                <ScrollView horizontal style={styles.cardImageScroll}>
-                  {(m.images || [m.image]).filter(Boolean).map((uri, i) => (
-                    <Image key={i} source={{ uri }} style={styles.cardImage} />
-                  ))}
-                </ScrollView>
-                <View style={styles.cardInfo}>
-                  <Text style={styles.cardDate}>{m.date} {m.time}</Text>
-                  <Text style={styles.cardLocation}>📍 {m.location}</Text>
-                  <Text style={styles.cardRating}>{'⭐'.repeat(m.rating || 0)}</Text>
-                  <Text style={styles.cardNote}>{m.note}</Text>
-                  <View style={styles.cardButtons}>
-                    <TouchableOpacity onPress={() => openEdit(m)}>
-                      <Text style={styles.editBtn}>✏️ Edit</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setShareMemory(m)}>
-                      <Text style={styles.shareBtn}>📤 Share</Text>
-                    </TouchableOpacity>
-                  </View>
+            {groupByDate(memories).map(([date, items]) => (
+              <View key={date}>
+                <View style={styles.dateHeader}>
+                  <Text style={styles.dateHeaderText}>📅 {date}</Text>
+                  <Text style={styles.dateCount}>{items.length} memory{items.length > 1 ? 's' : ''}</Text>
                 </View>
+                {items.map((m) => (
+                  <View key={m.id} style={styles.card}>
+                    <ScrollView horizontal style={styles.cardImageScroll}>
+                      {(m.images || [m.image]).filter(Boolean).map((uri, i) => (
+                        <Image key={i} source={{ uri }} style={styles.cardImage} />
+                      ))}
+                    </ScrollView>
+                    <View style={styles.cardInfo}>
+                      <Text style={styles.cardDate}>{m.time}</Text>
+                      <Text style={styles.cardLocation}>📍 {m.location}</Text>
+                      <Text style={styles.cardRating}>{'⭐'.repeat(m.rating || 0)}</Text>
+                      <Text style={styles.cardNote}>{m.note}</Text>
+                      <View style={styles.cardButtons}>
+                        <TouchableOpacity onPress={() => openEdit(m)}>
+                          <Text style={styles.editBtn}>✏️ Edit</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setShareMemory(m)}>
+                          <Text style={styles.shareBtn}>📤 Share</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => deleteMemory(m.id)}>
+                          <Text style={styles.deleteBtn}>🗑️ Delete</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                ))}
               </View>
             ))}
           </ScrollView>
@@ -278,7 +315,10 @@ const styles = StyleSheet.create({
   previewScroll: { marginBottom: 15 },
   previewThumb: { width: 120, height: 120, borderRadius: 12, marginRight: 8 },
   list: { flex: 1 },
-  card: { marginBottom: 15, backgroundColor: '#f5f5f5', borderRadius: 12, overflow: 'hidden' },
+  dateHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#eee', marginBottom: 10 },
+  dateHeaderText: { fontSize: 16, fontWeight: 'bold', color: '#000' },
+  dateCount: { fontSize: 12, color: '#888' },
+  card: { marginBottom: 12, backgroundColor: '#f5f5f5', borderRadius: 12, overflow: 'hidden' },
   cardImageScroll: { flexDirection: 'row' },
   cardImage: { width: 120, height: 120 },
   cardInfo: { padding: 10 },
@@ -289,6 +329,7 @@ const styles = StyleSheet.create({
   cardButtons: { flexDirection: 'row', gap: 16, marginTop: 8 },
   editBtn: { fontSize: 13, color: '#555' },
   shareBtn: { fontSize: 13, color: '#007AFF' },
+  deleteBtn: { fontSize: 13, color: '#FF3B30' },
   template: { width: '100%', backgroundColor: '#f5f5f5', borderRadius: 12, padding: 12, marginBottom: 15 },
   templateText: { fontSize: 14, color: '#555', marginBottom: 4 },
   label: { fontSize: 16, fontWeight: 'bold', marginBottom: 8 },
